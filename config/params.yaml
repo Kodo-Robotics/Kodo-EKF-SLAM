@@ -1,0 +1,18 @@
+ekf_slam:
+  ros__parameters:
+    cmd_vel_topic: "/cmd_vel"
+    odom_topic: "/odom"
+    scan_topic: "/scan"
+    landmark_topic: "/landmark_observations"
+
+    motion_noise_v: 0.02
+    motion_noise_omega: 0.02
+
+    meas_r: 0.05
+    meas_b: 0.02
+
+    assoc_chi2: 5.99
+
+    scan_max_range: 6.0
+    scan_gap: 0.2
+    scan_min_size: 3
