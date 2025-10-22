@@ -16,3 +16,5 @@ ekf_slam:
     scan_max_range: 6.0
     scan_gap: 0.2
     scan_min_size: 3
+
+    use_sim_time: true

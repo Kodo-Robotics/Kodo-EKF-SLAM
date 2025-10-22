@@ -27,24 +27,28 @@ FramePublisher::FramePublisher(rclcpp::Node::SharedPtr node,
 void FramePublisher::broadcast(const Eigen::Vector3d &ekf_pose,
                                const rclcpp::Time &stamp,
                                const geometry_msgs::msg::Pose &odom_pose) {
-    geometry_msgs::msg::TransformStamped t;
-    t.header.stamp = stamp;
-    t.header.frame_id = map_frame_;
-    t.child_frame_id = odom_frame_;
     // compute transform T_map_odom = T_map_ekf * T_odom_base^{-1}
     tf2::Transform T_map_ekf;
     T_map_ekf.setOrigin(tf2::Vector3(ekf_pose(0), ekf_pose(1), 0));
-    tf2::Quaternion q; q.setRPY(0, 0, ekf_pose(2)); T_map_ekf.setRotation(q);
+    tf2::Quaternion q_map; q_map.setRPY(0, 0, ekf_pose(2));
+    T_map_ekf.setRotation(q_map);
+
     tf2::Transform T_odom_base;
-    tf2::fromMsg(odom_pose.orientation, q);
+    tf2::Quaternion q_od; tf2::fromMsg(odom_pose.orientation, q_od);
     T_odom_base.setOrigin(tf2::Vector3(odom_pose.position.x, odom_pose.position.y, 0));
-    T_odom_base.setRotation(q);
-    tf2::Transform T = T_map_ekf * T_odom_base.inverse();
-    t.transform.translation.x = T.getOrigin().x();
-    t.transform.translation.y = T.getOrigin().y();
-    t.transform.translation.z = 0.0;
-    t.transform.rotation = tf2::toMsg(T.getRotation());
-    tf_broadcaster_->sendTransform(t);
+    T_odom_base.setRotation(q_od);
+
+    tf2::Transform T_map_odom = T_map_ekf * T_odom_base.inverse();
+
+    geometry_msgs::msg::TransformStamped ts;
+    ts.header.stamp = stamp;
+    ts.header.frame_id = map_frame_;
+    ts.child_frame_id = odom_frame_;
+    ts.transform.translation.x = T_map_odom.getOrigin().x();
+    ts.transform.translation.y = T_map_odom.getOrigin().y();
+    ts.transform.rotation = tf2::toMsg(T_map_odom.getRotation());
+
+    tf_broadcaster_->sendTransform(ts);
 }
 
 }   // namespace

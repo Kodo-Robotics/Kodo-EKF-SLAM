@@ -28,7 +28,7 @@ using namespace kodo_ekf_slam;
 
 class EKFNode : public rclcpp::Node {
 public:
-    EKFNode(): Node("kodo_ekf_slam"), cmd_valid_(false) {
+    EKFNode(): Node("kodo_ekf_slam") {
         // params
         this->declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
         this->declare_parameter<std::string>("odom_topic", "/odom");
@@ -94,13 +94,12 @@ private:
         timer_->cancel();
         viz_ = std::make_shared<Visualizer>(shared_from_this());
         frame_pub_ = std::make_shared<FramePublisher>(shared_from_this());
+        last_update_time_ = this->now();
     }
 
     void cmd_vel_cb(const geometry_msgs::msg::TwistStamped::SharedPtr msg) {
-        last_cmd_time_ = this->now();
         last_v_ = msg->twist.linear.x;
         last_omega_ = msg->twist.angular.z;
-        cmd_valid_ = true;
     }
 
     void odom_cb(const nav_msgs::msg::Odometry::SharedPtr msg) {
@@ -121,11 +120,8 @@ private:
 
     void timerUpdateStep() {
         // 1. Prediction from cmd_vel
-        if (cmd_valid_) {
-            double dt = (this->now() - last_cmd_time_).seconds();
-            ekf_->predict(last_v_, last_omega_, dt);
-            cmd_valid_ = false;
-        }
+        double dt = (this->now() - last_update_time_).seconds();
+        ekf_->predict(last_v_, last_omega_, dt);
 
         // 2. Correction from scan clusters
         sensor_msgs::msg::LaserScan::SharedPtr scan;
@@ -153,10 +149,8 @@ private:
                 latest_landmarks_msg_.reset();
             }
         }
-    }
 
-    void timerVisualizeStep() {
-        // Broadcast map->odom transform
+        // 4. Broadcast map->odom transform
         geometry_msgs::msg::Pose odom_pose;
         rclcpp::Time stamp;
         {
@@ -166,6 +160,10 @@ private:
         }
         frame_pub_->broadcast(ekf_->robot_pose(), stamp, odom_pose);
 
+        last_update_time_ = this->now();
+    }
+
+    void timerVisualizeStep() {
         // Publish visuals
         viz_->publish_landmarks(ekf_->landmarks());
         viz_->publish_pose(ekf_->robot_pose(), ekf_->robot_covariance());
@@ -182,9 +180,8 @@ private:
     rclcpp::TimerBase::SharedPtr update_timer_;
     rclcpp::TimerBase::SharedPtr vis_timer_;
 
-    bool cmd_valid_;
     double last_v_, last_omega_;
-    rclcpp::Time last_cmd_time_;
+    rclcpp::Time last_update_time_;
 
     std::mutex scan_mutex_, lm_mutex_, odom_mutex_;
     sensor_msgs::msg::LaserScan::SharedPtr latest_scan_;
